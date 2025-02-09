@@ -4,7 +4,7 @@
 diskoLib.testLib.makeDiskoTest {
   inherit pkgs;
   name = "bcachefs-multi";
-  disko-config = ../example/bcachefs-multi.nix;
+  disko-config = ../example/bcachefs-multi-disk.nix;
   extraTestScript = ''
     machine.succeed("mountpoint /mnt/pool")
     
@@ -32,6 +32,7 @@ diskoLib.testLib.makeDiskoTest {
   
   # Required system configuration for bcachefs
   extraInstallerConfig = {
+    virtualisation.emptyDiskImages = [ 4096 4096 4096 ];
     boot.supportedFilesystems = [ "bcachefs" ];
   };
   

@@ -397,11 +397,11 @@ let
       };
     };
 
-    /* topLevel type of the disko config, takes attrsets of disks, mdadms, zpools, nodevs, and lvm vgs.
+    /* topLevel type of the disko config, takes attrsets of disks, bcachefs, mdadms, zpools, nodevs, and lvm vgs.
     */
     toplevel = lib.types.submodule (cfg:
       let
-        devices = { inherit (cfg.config) disk mdadm zpool lvm_vg nodev; };
+        devices = { inherit (cfg.config) disk bcachefs mdadm zpool lvm_vg nodev; };
       in
       {
         options = {
