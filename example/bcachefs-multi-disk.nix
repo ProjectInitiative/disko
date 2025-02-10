@@ -40,7 +40,7 @@
               size = "100%";
               content = {
                 type = "bcachefs_member";
-                pool = "pool1";
+                name = "pool1";
                 label = "fast";
                 discard = true;
                 dataAllowed = [ "journal" "btree" ];
@@ -59,7 +59,7 @@
               size = "100%";
               content = {
                 type = "bcachefs_member";
-                pool = "pool1";
+                name = "pool1";
                 label = "slow";
                 durability = 2;
                 dataAllowed = [ "user" ];

@@ -1,85 +1,91 @@
+# lib/types/bcachefs.nix
 { config, options, lib, diskoLib, ... }:
 {
   options = {
-    type = lib.mkOption {
-      type = lib.types.enum [ "bcachefs" ];
-      description = "bcachefs pool type";
-    };
     name = lib.mkOption {
       type = lib.types.str;
       default = config._module.args.name;
       description = "Name of the bcachefs pool";
     };
+
+    type = lib.mkOption {
+      type = lib.types.enum [ "bcachefs" ];
+      default = "bcachefs";
+      internal = true;
+      description = "Type";
+    };
+
     formatOptions = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [];
       description = "Additional options for bcachefs format";
     };
+
     mountpoint = lib.mkOption {
       type = lib.types.str;
       description = "Mount point for the bcachefs pool";
     };
+
     mountOptions = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "defaults" ];
       description = "Options to pass to mount";
     };
+
+    content = diskoLib.deviceType { parent = config; device = "/dev/bcachefs/${config.name}"; };
+
     _meta = lib.mkOption {
       internal = true;
       readOnly = true;
       type = diskoLib.jsonType;
-      default = {};
+      # default = {};
+      default = lib.optionalAttrs (config.content != null) (config.content._meta [ "bcachefs" config.name ]);
+      description = "Metadata";
     };
+
     _create = diskoLib.mkCreateOption {
       inherit config options;
       default = ''
-        readarray -t pool_devices < <(cat "$disko_devices_dir"/bcachefs_${lib.escapeShellArg config.name})
-        if [ "''${#pool_devices[@]}" -eq 0 ]; then
-          echo "no devices found for bcachefs pool ${config.name}. Did you misspell the pool name?" >&2
-          exit 1
-        fi
+        echo BCACHEFS POSITION
+        # Read member info from runtime dir
+        readarray -t member_args < <(cat /etc/disko/bcachefs-${config.name}-members || true)
+        
+        # Add format options
+        args=()
+        args+=("''${member_args[@]}")
+        args+=(${toString config.formatOptions})
 
-        # Check if any of the devices need formatting
-        needs_format=0
-        for device in "''${pool_devices[@]}"; do
-          if ! bcachefs show-super "$device" >/dev/null 2>&1; then
-            needs_format=1
-            break
-          fi
-        done
+        # Get the first device (primary)
+        primary_device=$(echo "''${member_args[0]}" | cut -d' ' -f1)
 
-        if [ "$needs_format" -eq 1 ]; then
-          # Build device-specific arguments for each device
-          args=()
-          
-          # Add all devices and their options
-          for device in "''${pool_devices[@]}"; do
-            args+=("$device")
-          done
-
-          # Add format options
-          args+=(${toString config.formatOptions})
-          
+        # Format if needed
+        if ! bcachefs show-super "$primary_device" >/dev/null 2>&1; then
           bcachefs format --force "''${args[@]}"
           udevadm trigger --subsystem-match=block
           udevadm settle
         fi
+
+        # Always get and store the UUID
+        mkdir -p /etc/disko-uuids
+        bcachefs show-super "$primary_device" | grep Ext | awk '{print $3}' > /etc/disko-uuids/bcachefs-${config.name}
       '';
     };
+
     _mount = diskoLib.mkMountOption {
       inherit config options;
       default = {
         fs.${config.mountpoint} = ''
           if ! findmnt "${config.mountpoint}" > /dev/null 2>&1; then
-            readarray -t pool_devices < <(cat "$disko_devices_dir"/bcachefs_${lib.escapeShellArg config.name})
-            UUID=$(bcachefs show-super "''${pool_devices[0]}" | grep Ext | awk '{print $3}')
-            mount -t bcachefs UUID="$UUID" "${config.mountpoint}" \
+            # Read UUID from the file we created
+            uuid=$(cat /etc/disko-uuids/bcachefs-${config.name})
+            mount -t bcachefs UUID="$uuid" "${config.mountpoint}" \
               ${lib.concatMapStringsSep " " (opt: "-o ${opt}") config.mountOptions} \
               -o X-mount.mkdir
           fi
         '';
       };
     };
+
     _unmount = diskoLib.mkUnmountOption {
       inherit config options;
       default = {
@@ -90,20 +96,27 @@
         '';
       };
     };
+
     _config = lib.mkOption {
       internal = true;
       readOnly = true;
-      default = [
+      default = let
+        uuidFile = "/etc/disko-uuids/bcachefs-${config.name}";
+        uuid = if builtins.pathExists uuidFile
+               then lib.removeSuffix "\n" (builtins.readFile uuidFile)
+               else "not-yet-created";
+      in [
         { boot.supportedFilesystems = [ "bcachefs" ]; }
         {
           fileSystems.${config.mountpoint} = {
-            device = "UUID=placeholder"; # Real UUID is determined at mount time
+            device = "UUID=${uuid}";
             fsType = "bcachefs";
             options = config.mountOptions;
           };
         }
       ];
     };
+
     _pkgs = lib.mkOption {
       internal = true;
       readOnly = true;

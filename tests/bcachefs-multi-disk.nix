@@ -8,6 +8,7 @@ diskoLib.testLib.makeDiskoTest {
   extraTestScript = ''
     machine.succeed("mountpoint /mnt/pool");
     machine.succeed("lsblk >&2");
+  '';
   #   machine.succeed("mountpoint /mnt/pool")
     
   #   # Verify bcachefs mount
@@ -30,7 +31,6 @@ diskoLib.testLib.makeDiskoTest {
   #   content = machine.succeed("cat /mnt/pool/test_file").strip()
   #   if content != "test content":
   #       raise Exception("File content verification failed")
-  # '';
   
   # Required system configuration for bcachefs
   extraInstallerConfig = {
