@@ -34,7 +34,6 @@
     _create = diskoLib.mkCreateOption {
       inherit config options;
       default = ''
-        echo MDADM POSITION
         if ! test -e "/dev/md/${config.name}"; then
           readarray -t disk_devices < <(cat "$disko_devices_dir"/raid_${lib.escapeShellArg config.name})
           echo 'y' | mdadm --create "/dev/md/${config.name}" \

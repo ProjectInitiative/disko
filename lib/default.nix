@@ -23,7 +23,7 @@ let
     };
 
     # option for valid contents of partitions (basically like devices, but without tables)
-    _partitionTypes = { inherit (diskoLib.types) btrfs filesystem zfs mdraid luks lvm_pv swap bmember; };
+    _partitionTypes = { inherit (diskoLib.types) btrfs filesystem zfs mdraid luks lvm_pv swap bcachefs_member; };
     partitionType = extraArgs: lib.mkOption {
       type = lib.types.nullOr (diskoLib.subType {
         types = diskoLib._partitionTypes;
@@ -34,7 +34,7 @@ let
     };
 
     # option for valid contents of devices
-    _deviceTypes = { inherit (diskoLib.types) table gpt btrfs filesystem zfs mdraid luks lvm_pv swap bmember; };
+    _deviceTypes = { inherit (diskoLib.types) table gpt btrfs filesystem zfs mdraid luks lvm_pv swap bcachefs_member; };
     deviceType = extraArgs: lib.mkOption {
       type = lib.types.nullOr (diskoLib.subType {
         types = diskoLib._deviceTypes;
@@ -115,7 +115,7 @@ let
 
     /* deepMergeMap takes a function and a list of attrsets and deep merges them
 
-       deepMergeMap :: (AttrSet -> AttrSet ) -> [ AttrSet ] -> Attrset
+       deepMergeMap :: (cachefs_AttrSet -> AttrSet ) -> [ AttrSet ] -> Attrset
 
        Example:
          deepMergeMap (x: x.t = "test") [ { x = { y = 1; z = 3; }; } { x = { bla = 234; }; } ]

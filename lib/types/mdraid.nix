@@ -32,7 +32,6 @@
     _create = diskoLib.mkCreateOption {
       inherit config options;
       default = ''
-        echo MDRAID POSITION
         echo "${config.device}" >>"$disko_devices_dir"/raid_${lib.escapeShellArg config.name}
         cat "$disko_devices_dir"/raid_${lib.escapeShellArg config.name}
       '';

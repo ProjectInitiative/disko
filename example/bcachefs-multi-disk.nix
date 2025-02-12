@@ -39,7 +39,7 @@
             bcachefs = {
               size = "100%";
               content = {
-                type = "bmember";
+                type = "bcachefs_member";
                 name = "pool1";
                 label = "fast";
                 discard = true;
@@ -61,7 +61,7 @@
             bcachefs = {
               size = "100%";
               content = {
-                type = "bmember";
+                type = "bcachefs_member";
                 name = "pool1";
                 label = "slow";
                 durability = 2;
