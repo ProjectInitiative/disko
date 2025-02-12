@@ -3,7 +3,7 @@
 {
   options = {
     type = lib.mkOption {
-      type = lib.types.enum [ "bcachefs_member" ];
+      type = lib.types.enum [ "bmember" ];
       internal = true;
       description = "bcachefs member device type";
     };

@@ -1,8 +1,8 @@
 {
   disko.devices = {
     disk = {
-      main = {
-        device = "/dev/disk/by-path/pci-0000:02:00.0-nvme-1";
+      bcachefsmain = {
+        device = "/dev/vda";
         type = "disk";
         content = {
           type = "gpt";
@@ -30,7 +30,7 @@
         };
       };
 
-      disk1 = {
+      bcachefsdisk1 = {
         type = "disk";
         device = "/dev/vdc";
         content = {
@@ -39,17 +39,20 @@
             bcachefs = {
               size = "100%";
               content = {
-                type = "bcachefs_member";
+                type = "bmember";
                 name = "pool1";
                 label = "fast";
                 discard = true;
                 dataAllowed = [ "journal" "btree" ];
+                preCreateHook = ''
+                  echo "Creating bmember device: $device" >&2
+                '';
               };
             };
           };
         };
       };
-      disk2 = {
+      bcachefsdisk2 = {
         type = "disk";
         device = "/dev/vdd";
         content = {
@@ -58,11 +61,14 @@
             bcachefs = {
               size = "100%";
               content = {
-                type = "bcachefs_member";
+                type = "bmember";
                 name = "pool1";
                 label = "slow";
                 durability = 2;
                 dataAllowed = [ "user" ];
+                preCreateHook = ''
+                  echo "Creating bmember device: $device" >&2
+                '';
               };
             };
           };
@@ -73,7 +79,7 @@
       #   type = "disk";
       #   device = "/dev/vde";
       #   content = {
-      #     type = "bcachefs_member";
+      #     type = "bmember";
       #     pool = "pool1";
       #     label = "main";
       #   };
@@ -83,9 +89,27 @@
     bcachefs = {
       pool1 = {
         type = "bcachefs";
+
+        content = {
+          type = "gpt";
+          partitions = {
+            primary = {
+              size = "100%";
+              content = {
+                type = "filesystem";
+                format = "ext4";
+                mountpoint = "/";
+              };
+            };
+          };
+        };
+
         mountpoint = "/mnt/pool";
         formatOptions = [ "--compression=zstd" ];
         mountOptions = [ "verbose" "degraded" ];
+        preCreateHook = ''
+          echo "Creating bcachefs device: $device" >&2
+        '';
       };
     };
   };

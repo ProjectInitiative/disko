@@ -38,8 +38,8 @@
       internal = true;
       readOnly = true;
       type = diskoLib.jsonType;
-      # default = {};
-      default = lib.optionalAttrs (config.content != null) (config.content._meta [ "bcachefs" config.name ]);
+      default = lib.optionalAttrs (config.content != null) (config.content._meta ["bcachefs" config.name ]);
+      
       description = "Metadata";
     };
 
@@ -47,27 +47,28 @@
       inherit config options;
       default = ''
         echo BCACHEFS POSITION
-        # Read member info from runtime dir
-        readarray -t member_args < <(cat /etc/disko/bcachefs-${config.name}-members || true)
+        # # Read member info from runtime dir
+        # readarray -t member_args < <(cat /etc/disko/bcachefs-${config.name}-members || true)
         
-        # Add format options
-        args=()
-        args+=("''${member_args[@]}")
-        args+=(${toString config.formatOptions})
+        # # Add format options
+        # args=()
+        # args+=("''${member_args[@]}")
+        # args+=(${toString config.formatOptions})
 
-        # Get the first device (primary)
-        primary_device=$(echo "''${member_args[0]}" | cut -d' ' -f1)
+        # # Get the first device (primary)
+        # primary_device=$(echo "''${member_args[0]}" | cut -d' ' -f1)
 
-        # Format if needed
-        if ! bcachefs show-super "$primary_device" >/dev/null 2>&1; then
-          bcachefs format --force "''${args[@]}"
-          udevadm trigger --subsystem-match=block
-          udevadm settle
-        fi
+        # # Format if needed
+        # if ! bcachefs show-super "$primary_device" >/dev/null 2>&1; then
+        #   bcachefs format --force "''${args[@]}"
+        #   udevadm trigger --subsystem-match=block
+        #   udevadm settle
+        # fi
 
-        # Always get and store the UUID
-        mkdir -p /etc/disko-uuids
-        bcachefs show-super "$primary_device" | grep Ext | awk '{print $3}' > /etc/disko-uuids/bcachefs-${config.name}
+        # # Always get and store the UUID
+        # mkdir -p /etc/disko-uuids
+        # bcachefs show-super "$primary_device" | grep Ext | awk '{print $3}' > /etc/disko-uuids/bcachefs-${config.name}
+        ${lib.optionalString (config.content != null) config.content._create}
       '';
     };
 

@@ -23,7 +23,7 @@ let
     };
 
     # option for valid contents of partitions (basically like devices, but without tables)
-    _partitionTypes = { inherit (diskoLib.types) btrfs filesystem zfs mdraid luks lvm_pv swap bcachefs_member; };
+    _partitionTypes = { inherit (diskoLib.types) btrfs filesystem zfs mdraid luks lvm_pv swap bmember; };
     partitionType = extraArgs: lib.mkOption {
       type = lib.types.nullOr (diskoLib.subType {
         types = diskoLib._partitionTypes;
@@ -34,7 +34,7 @@ let
     };
 
     # option for valid contents of devices
-    _deviceTypes = { inherit (diskoLib.types) table gpt btrfs filesystem zfs mdraid luks lvm_pv swap bcachefs_member; };
+    _deviceTypes = { inherit (diskoLib.types) table gpt btrfs filesystem zfs mdraid luks lvm_pv swap bmember; };
     deviceType = extraArgs: lib.mkOption {
       type = lib.types.nullOr (diskoLib.subType {
         types = diskoLib._deviceTypes;
