@@ -626,6 +626,11 @@ let
             default = { };
             description = "Block device";
           };
+          bcachefs = lib.mkOption {
+            type = lib.types.attrsOf diskoLib.types.bcachefs;
+            default = { };
+            description = "bcachefs device";
+          };
           mdadm = lib.mkOption {
             type = lib.types.attrsOf diskoLib.types.mdadm;
             default = { };

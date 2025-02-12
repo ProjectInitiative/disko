@@ -41,6 +41,7 @@
       inherit config options;
       default = ''
         echo "${config.device}" >>"$disko_devices_dir"/raid_${lib.escapeShellArg config.name}
+        cat "$disko_devices_dir"/raid_${lib.escapeShellArg config.name}
       '';
     };
     _mount = diskoLib.mkMountOption {
