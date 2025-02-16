@@ -14,6 +14,7 @@ let
       let
         cleanedTopLevel = lib.filterAttrsRecursive (n: _: !lib.hasPrefix "_" n) cfg;
 
+<<<<<<< Updated upstream
         preparedDisks =
           lib.foldlAttrs
             (acc: n: v: {
@@ -30,6 +31,18 @@ let
                     device = lib.head acc.devices;
                   };
                 };
+=======
+        preparedDisks = lib.foldlAttrs
+          (acc: n: v: {
+            devices = lib.tail acc.devices;
+            grub-devices = acc.grub-devices ++ (lib.optional (lib.any (part: (part.type or "") == "EF02") (lib.attrValues (v.content.partitions or { }))) (lib.head acc.devices));
+            disks = acc.disks // {
+              "${n}" = v // {
+                # device = v.device;  # Keep original device
+                # content = v.content;  # Keep original content
+                device = lib.head acc.devices;
+                content = v.content // { device = lib.head acc.devices; };
+>>>>>>> Stashed changes
               };
             })
             {

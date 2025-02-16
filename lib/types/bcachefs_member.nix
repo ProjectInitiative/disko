@@ -14,7 +14,7 @@
       default = device;
     };
 
-    name = lib.mkOption {
+    pool = lib.mkOption {
       type = lib.types.str;
       description = "Name of the bcachefs pool this device belongs to";
     };
@@ -54,7 +54,7 @@
       readOnly = true;
       type = lib.types.functionTo diskoLib.jsonType;
       default = dev: {
-        deviceDependencies.bcachefs.${config.name} = [ dev ];
+        deviceDependencies.bcachefs.${config.pool} = [ dev ];
       };
       description = "Metadata";
     };
@@ -71,10 +71,8 @@
         ];
       in ''
         echo BCACHEFS_MEMBER POSITION
-        echo "${config.device}" >>"$disko_devices_dir"/raid_${lib.escapeShellArg config.name}
-        cat "$disko_devices_dir"/raid_${lib.escapeShellArg config.name}
         mkdir -p /etc/disko
-        echo "${deviceArgs}" >> /etc/disko/bcachefs-${config.name}-members
+        echo "${deviceArgs}" >> /etc/disko/bcachefs-${config.pool}-members
       '';
     };
 

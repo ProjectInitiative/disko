@@ -46,6 +46,7 @@ let
       inherit (diskoLib.types)
         btrfs
         filesystem
+        bcachefs_member
         zfs
         mdraid
         luks
@@ -71,6 +72,7 @@ let
       inherit (diskoLib.types)
         table
         gpt
+        bcachefs_member
         btrfs
         filesystem
         zfs
@@ -612,6 +614,7 @@ let
         devices = {
           inherit (cfg.config)
             disk
+            bcachefs
             mdadm
             zpool
             lvm_vg
