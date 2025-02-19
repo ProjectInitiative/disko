@@ -259,13 +259,15 @@ in
         if ! blkid "${config.device}" >&2; then
           sgdisk --clear "${config.device}"
         fi
+    
+        mkdir -p /tmp/disko-partitions
+    
         ${lib.concatMapStrings (
           partition:
           let
+            # Generate the partition-guid argument using uuidgen
             args = ''
-              --partition-guid="${toString partition._index}:${
-                if partition.uuid == null then "R" else partition.uuid
-              }" \
+              --partition-guid="${toString partition._index}:$(uuidgen -r)" \
               --change-name="${toString partition._index}:${partition.label}" \
               --typecode=${toString partition._index}:${partition.type} \
               "${config.device}" \
@@ -280,18 +282,26 @@ in
             '';
           in
           ''
-            # try to create the partition, if it fails, try to change the type and name
-            if ! sgdisk ${createArgs} ${args}
-            then
-              sgdisk ${args}
-            fi
-            # ensure /dev/disk/by-path/..-partN exists before continuing
+            # Generate UUID and store it
+            PART_UUID=$(uuidgen -r)
+            # DISK_NAME=$(basename "${config.device}")
+        
+            # Create partition with our pre-generated UUID
+            sgdisk ${createArgs} --partition-guid="${toString partition._index}:$PART_UUID" \
+              --change-name="${toString partition._index}:${partition.label}" \
+              --typecode=${toString partition._index}:${partition.type} \
+              "${config.device}"
+        
+            # Store the mapping right away since we know the UUID
+            echo "/dev/disk/by-partuuid/$PART_UUID" > "/tmp/disko-partitions/${partition.label}"
+        
+            # Ensure partition exists before continuing
             partprobe "${config.device}" || : # sometimes partprobe fails, but the partitions are still up2date
             udevadm trigger --subsystem-match=block
             udevadm settle
           ''
         ) sortedPartitions}
-
+    
         ${lib.optionalString (sortedHybridPartitions != [ ]) (
           "sgdisk -h "
           + (lib.concatStringsSep ":" (map (p: (toString p._index)) sortedHybridPartitions))
@@ -299,7 +309,6 @@ in
           + ''"${parent.device}"''
         )}
         ${lib.concatMapStrings (p: p.hybrid._create) sortedHybridPartitions}
-
         ${lib.concatStrings (
           map (partition: ''
             ${lib.optionalString (partition.content != null) partition.content._create}
@@ -359,6 +368,7 @@ in
           pkgs.gptfdisk
           pkgs.systemdMinimal
           pkgs.parted # for partprobe
+          pkgs.util-linux
         ]
         ++ lib.flatten (
           map (partition: lib.optional (partition.content != null) (partition.content._pkgs pkgs)) (
