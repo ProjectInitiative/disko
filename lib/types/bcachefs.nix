@@ -48,7 +48,7 @@
       default = ''
         echo BCACHEFS POSITION
         # Read member info from runtime dir
-        readarray -t member_args < <(cat /etc/disko/bcachefs-${config.name}-members || true)
+        readarray -t member_args < <(cat "$disko_devices_dir/bcachefs-${config.name}-members" || true)
         
         # Add format options
         args=()

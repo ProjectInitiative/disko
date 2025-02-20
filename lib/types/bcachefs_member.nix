@@ -71,8 +71,8 @@
         ];
       in ''
         echo BCACHEFS_MEMBER POSITION
-        mkdir -p /etc/disko
-        echo "${deviceArgs}" >> /etc/disko/bcachefs-${config.pool}-members
+        # mkdir -p /etc/disko
+        echo "${deviceArgs}" >> "$disko_devices_dir/bcachefs-${config.pool}-members"
       '';
     };
 

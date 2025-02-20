@@ -3,6 +3,7 @@
   options,
   lib,
   diskoLib,
+  pkgs,
   parent,
   device,
   ...
@@ -59,24 +60,7 @@ in
               };
               device = lib.mkOption {
                 type = lib.types.str;
-                default =
-                  if partition.config.uuid != null then
-                    "/dev/disk/by-partuuid/${partition.config.uuid}"
-                  else if config._parent.type == "mdadm" then
-                    # workaround because mdadm partlabel do not appear in /dev/disk/by-partlabel
-                    "/dev/disk/by-id/md-name-any:${config._parent.name}-part${toString partition.config._index}"
-                  else
-                    "/dev/disk/by-partlabel/${diskoLib.hexEscapeUdevSymlink partition.config.label}";
-                defaultText = ''
-                  if `uuid` is provided:
-                    /dev/disk/by-partuuid/''${partition.config.uuid}
-
-                  otherwise, if the parent is an mdadm device:
-                    /dev/disk/by-id/md-name-any:''${config._parent.name}-part''${toString partition.config._index}
-
-                  otherwise:
-                    /dev/disk/by-partlabel/''${diskoLib.hexEscapeUdevSymlink partition.config.label}
-                '';
+                default = "/dev/disk/by-partuuid/${partition.config.uuid}";
                 description = "Device to use for the partition";
               };
               priority = lib.mkOption {
@@ -103,16 +87,14 @@ in
                 default = name;
               };
               uuid = lib.mkOption {
-                type = lib.types.nullOr (
-                  lib.types.strMatching "[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}"
-                );
-                default = null;
-                defaultText = "`null` - generate a UUID when creating the partition";
+                default = diskoLib.mkUUID { 
+                  pkgs = import <nixpkgs> {};
+                };
+                defaultText = "generated at evaluation time";
                 example = "809b3a2b-828a-4730-95e1-75b6343e415a";
                 description = ''
                   The UUID (also known as GUID) of the partition. Note that this is distinct from the UUID of the filesystem.
-
-                  You can generate a UUID with the command `uuidgen -r`.
+                  If not provided, a random UUID will be generated at evaluation time.
                 '';
               };
               label = lib.mkOption {
@@ -259,61 +241,36 @@ in
         if ! blkid "${config.device}" >&2; then
           sgdisk --clear "${config.device}"
         fi
-    
-        mkdir -p /tmp/disko-partitions
-    
-        ${lib.concatMapStrings (
-          partition:
-          let
-            # Generate the partition-guid argument using uuidgen
-            args = ''
-              --partition-guid="${toString partition._index}:$(uuidgen -r)" \
-              --change-name="${toString partition._index}:${partition.label}" \
-              --typecode=${toString partition._index}:${partition.type} \
-              "${config.device}" \
-            '';
-            createArgs = ''
-              --align-end ${
-                lib.optionalString (
-                  partition.alignment != 0
-                ) ''--set-alignment=${builtins.toString partition.alignment}''
-              } \
-              --new=${toString partition._index}:${partition.start}:${partition.end} \
-            '';
-          in
-          ''
-            # Generate UUID and store it
-            PART_UUID=$(uuidgen -r)
-            # DISK_NAME=$(basename "${config.device}")
-        
-            # Create partition with our pre-generated UUID
-            sgdisk ${createArgs} --partition-guid="${toString partition._index}:$PART_UUID" \
-              --change-name="${toString partition._index}:${partition.label}" \
-              --typecode=${toString partition._index}:${partition.type} \
-              "${config.device}"
-        
-            # Store the mapping right away since we know the UUID
-            echo "/dev/disk/by-partuuid/$PART_UUID" > "/tmp/disko-partitions/${partition.label}"
-        
-            # Ensure partition exists before continuing
-            partprobe "${config.device}" || : # sometimes partprobe fails, but the partitions are still up2date
-            udevadm trigger --subsystem-match=block
-            udevadm settle
-          ''
-        ) sortedPartitions}
-    
-        ${lib.optionalString (sortedHybridPartitions != [ ]) (
-          "sgdisk -h "
-          + (lib.concatStringsSep ":" (map (p: (toString p._index)) sortedHybridPartitions))
-          + (lib.optionalString (!config.efiGptPartitionFirst) ":EE ")
-          + ''"${parent.device}"''
+
+        ${lib.concatMapStrings (partition: ''
+          # Create partition with pre-determined UUID
+          sgdisk \
+            --align-end ${lib.optionalString (partition.alignment != 0) 
+              ''--set-alignment=${builtins.toString partition.alignment}''} \
+            --new=${toString partition._index}:${partition.start}:${partition.end} \
+            --partition-guid="${toString partition._index}:${partition.uuid}" \
+            --change-name="${toString partition._index}:${partition.label}" \
+            --typecode=${toString partition._index}:${partition.type} \
+            "${config.device}"
+
+          # Ensure partition exists before continuing
+          partprobe "${config.device}" || : # sometimes partprobe fails, but the partitions are still up2date
+          udevadm trigger --subsystem-match=block
+          udevadm settle
+        '') sortedPartitions}
+
+        ${lib.optionalString (sortedHybridPartitions != []) (
+          "sgdisk -h " + 
+          (lib.concatStringsSep ":" (map (p: toString p._index) sortedHybridPartitions)) +
+          (lib.optionalString (!config.efiGptPartitionFirst) ":EE ") +
+          ''"${parent.device}"''
         )}
+
         ${lib.concatMapStrings (p: p.hybrid._create) sortedHybridPartitions}
-        ${lib.concatStrings (
-          map (partition: ''
-            ${lib.optionalString (partition.content != null) partition.content._create}
-          '') sortedPartitions
-        )}
+
+        ${lib.concatMapStrings (partition: 
+          lib.optionalString (partition.content != null) partition.content._create
+        ) sortedPartitions}
       '';
     };
     _mount = diskoLib.mkMountOption {

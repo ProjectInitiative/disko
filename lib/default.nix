@@ -3,6 +3,7 @@
   rootMountPoint ? "/mnt",
   makeTest ? import <nixpkgs/nixos/tests/make-test-python.nix>,
   eval-config ? import <nixpkgs/nixos/lib/eval-config.nix>,
+  pkgs ? null 
 }:
 let
   outputs = import ../default.nix { inherit lib diskoLib; };
@@ -94,6 +95,22 @@ let
         default = null;
         description = "The type of device";
       };
+
+    /**
+      Generate a random UUID using uuidgen
+  
+      mkUUID :: AttrSet -> str
+    **/
+    mkUUID =
+      { pkgs
+      , lib ? pkgs.lib
+      }: 
+      lib.removeSuffix "\n" (builtins.readFile (pkgs.runCommand "gen-uuid" {} ''
+        ${pkgs.util-linux}/bin/uuidgen -r > $out
+      ''));
+      # builtins.readFile (pkgs.runCommand "gen-uuid" {} ''
+      #   ${pkgs.util-linux}/bin/uuidgen -r > $out
+      # '');
 
     /**
         like lib.recursiveUpdate but supports merging of lists
@@ -933,7 +950,7 @@ let
                 set -efux
 
                 disko_devices_dir=$(mktemp -d)
-                trap 'rm -rf "$disko_devices_dir"' EXIT
+                # trap 'rm -rf "$disko_devices_dir"' EXIT
                 mkdir -p "$disko_devices_dir"
 
                 ${concatMapStrings (dev: (attrByPath (dev ++ [ "_create" ]) { } devices)) sortedDeviceList}
