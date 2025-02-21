@@ -45,30 +45,84 @@
 
     _create = diskoLib.mkCreateOption {
       inherit config options;
-      default = ''
-        echo BCACHEFS POSITION
-        # Read member info from runtime dir
-        readarray -t member_args < <(cat "$disko_devices_dir/bcachefs-${config.name}-members" || true)
+      # default = ''
+      #   echo BCACHEFS POSITION
+      #   # Read member info from runtime dir
+      #   readarray -t member_args < <(cat "$disko_devices_dir/bcachefs-${config.name}-members" || true)
         
-        # Add format options
-        args=()
-        args+=("''${member_args[@]}")
-        args+=(${toString config.formatOptions})
+      #   # Add format options
+      #   args=()
+      #   args+=("''${member_args[@]}")
+      #   args+=(${toString config.formatOptions})
 
-        # Get the first device (primary)
-        primary_device=$(echo "''${member_args[0]}" | cut -d' ' -f1)
+      #   # Get the first device (primary)
+      #   primary_device=$(echo "''${member_args[0]}" | cut -d' ' -f1)
 
-        # Format if needed
-        if ! bcachefs show-super "$primary_device" >/dev/null 2>&1; then
-          bcachefs format --force "''${args[@]}"
-          udevadm trigger --subsystem-match=block
-          udevadm settle
-        fi
+      #   # Format if needed
+      #   if ! bcachefs show-super "$primary_device" >/dev/null 2>&1; then
+      #     bcachefs format --force "''${args[@]}"
+      #     udevadm trigger --subsystem-match=block
+      #     udevadm settle
+      #   fi
 
-        # Always get and store the UUID
-        mkdir -p /etc/disko-uuids
-        bcachefs show-super "$primary_device" | grep Ext | awk '{print $3}' > /etc/disko-uuids/bcachefs-${config.name}
-        ${lib.optionalString (config.content != null) config.content._create}
+      #   # Always get and store the UUID
+      #   mkdir -p /etc/disko-uuids
+      #   bcachefs show-super "$primary_device" | grep Ext | awk '{print $3}' > /etc/disko-uuids/bcachefs-${config.name}
+      #   ${lib.optionalString (config.content != null) config.content._create}
+      # '';
+      default = ''
+          echo BCACHEFS POSITION
+          # Read member info from runtime dir - one argument per line
+          readarray -t members < <(cat "$disko_devices_dir/bcachefs-${config.name}-members" || true)
+          readarray -t member_args < <(cat "$disko_devices_dir/bcachefs-${config.name}-args" || true)
+    
+          # Format if needed
+          if bcachefs show-super "''${members[0]}" >/dev/null 2>&1 && ! (bcachefs show-super "''${members[0]}" 2>&1 | grep -qi "Not a bcachefs superblock"); then
+            # Superblock exists and is valid, no reformat needed
+            echo "Found existing bcachefs filesystem, skipping format."
+          else
+            # Need to format - either show-super failed with non-zero exit code
+            # or it returned "Not a bcachefs superblock" message
+            echo "No valid bcachefs filesystem found, formatting..."
+            # bcachefs format --force "''${member_args[@]}" ${toString config.formatOptions}
+              # Add some sleep and sync to ensure all previous operations are complete
+
+            sync
+            sleep 1
+  
+            # Try formatting with additional error handling
+            format_attempts=0
+            max_attempts=3
+            format_success=false
+  
+            while [ $format_attempts -lt $max_attempts ] && [ "$format_success" = "false" ]; do
+              format_attempts=$((format_attempts + 1))
+              echo "Format attempt $format_attempts of $max_attempts..."
+    
+              if bcachefs format --force "''${member_args[@]}" ${toString config.formatOptions}; then
+                format_success=true
+                echo "Format successful"
+              else
+                format_exit=$?
+                echo "Format failed with exit code $format_exit, waiting before retry..."
+                sync
+                sleep 2
+              fi
+            done
+  
+            if [ "$format_success" = "false" ]; then
+              echo "Failed to format bcachefs filesystem after $max_attempts attempts"
+              exit 1
+            fi
+
+            udevadm trigger --subsystem-match=block
+            udevadm settle
+          fi
+
+          # Always get and store the UUID
+          mkdir -p /etc/disko-uuids
+          bcachefs show-super "''${members[0]}" | grep Ext | awk '{print $3}' > /etc/disko-uuids/bcachefs-${config.name}
+          ${lib.optionalString (config.content != null) config.content._create}
       '';
     };
 

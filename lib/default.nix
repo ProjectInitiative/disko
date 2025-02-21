@@ -108,9 +108,6 @@ let
       lib.removeSuffix "\n" (builtins.readFile (pkgs.runCommand "gen-uuid" {} ''
         ${pkgs.util-linux}/bin/uuidgen -r > $out
       ''));
-      # builtins.readFile (pkgs.runCommand "gen-uuid" {} ''
-      #   ${pkgs.util-linux}/bin/uuidgen -r > $out
-      # '');
 
     /**
         like lib.recursiveUpdate but supports merging of lists

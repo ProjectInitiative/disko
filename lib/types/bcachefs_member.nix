@@ -61,18 +61,27 @@
 
     _create = diskoLib.mkCreateOption {
       inherit config options;
-      default = let
-        deviceArgs = lib.concatStringsSep " " [
-          config.device
-          (lib.optionalString (config.label != null) "--label ${config.label}")
-          (lib.optionalString config.discard "--discard")
-          (lib.optionalString (config.durability != null) "--durability ${toString config.durability}")
-          (lib.optionalString (config.dataAllowed != []) "--data ${lib.concatStringsSep "," config.dataAllowed}")
-        ];
-      in ''
+      default = ''
         echo BCACHEFS_MEMBER POSITION
-        # mkdir -p /etc/disko
-        echo "${deviceArgs}" >> "$disko_devices_dir/bcachefs-${config.pool}-members"
+        
+        echo "${lib.escapeShellArg config.device}" >> "$disko_devices_dir/bcachefs-${config.pool}-members"
+    
+        # Write all arguments to the file in a single redirection operation
+        {
+          ${lib.optionalString (config.label != null) ''
+            echo "--label=${lib.escapeShellArg config.label}"
+          ''}
+          ${lib.optionalString config.discard ''
+            echo "--discard"
+          ''}
+          ${lib.optionalString (config.durability != null) ''
+            echo "--durability=${toString config.durability}"
+          ''}
+          ${lib.optionalString (config.dataAllowed != []) ''
+            echo "--data=${lib.escapeShellArg (lib.concatStringsSep "," config.dataAllowed)}"
+          ''}
+          echo "${lib.escapeShellArg config.device}"
+        } >> "$disko_devices_dir/bcachefs-${config.pool}-args"
       '';
     };
 

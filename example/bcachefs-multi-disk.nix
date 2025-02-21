@@ -22,7 +22,7 @@
               end = "-0";
               content = {
                 type = "filesystem";
-                format = "bcachefs";
+                format = "ext4";
                 mountpoint = "/";
               };
             };
@@ -73,7 +73,7 @@
       #   type = "disk";
       #   device = "/dev/vde";
       #   content = {
-      #     type = "bmember";
+      #     type = "bcachefs_member";
       #     pool = "pool1";
       #     label = "main";
       #   };
@@ -83,20 +83,6 @@
     bcachefs = {
       pool1 = {
         type = "bcachefs";
-
-        content = {
-          type = "gpt";
-          partitions = {
-            primary = {
-              size = "100%";
-              content = {
-                type = "filesystem";
-                format = "ext4";
-                mountpoint = "/";
-              };
-            };
-          };
-        };
 
         mountpoint = "/mnt/pool";
         formatOptions = [ "--compression=zstd" ];
