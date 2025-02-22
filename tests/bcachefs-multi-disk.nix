@@ -2,6 +2,7 @@
 , diskoLib ? pkgs.callPackage ../lib { }
 }:
 diskoLib.testLib.makeDiskoTest {
+  testBoot = true;
   inherit pkgs;
   name = "bcachefs-multi";
   disko-config = ../example/bcachefs-multi-disk.nix;

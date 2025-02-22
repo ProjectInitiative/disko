@@ -26,20 +26,17 @@ def remove:
 def deactivate:
   if .type == "disk" or .type == "loop" then
     [
-      "udevadm trigger --subsystem-match=block",
-      "udevadm settle",
       # If this disk is a member of raid, stop that raid
       "md_dev=$(lsblk \(.path) -l -p -o type,name | awk 'match($1,\"raid.*\") {print $2}')",
       "if [[ -n \"${md_dev}\" ]]; then umount \"$md_dev\"; mdadm --stop \"$md_dev\"; fi",
-      # Remove the partition information 
-      "dd if=/dev/zero of=\(.path) bs=512 count=1"
+      # Remove all file-systems and other magic strings
+      "wipefs --all -f \(.path)",
+      # Remove the MBR bootstrap code
+      "dd if=/dev/zero of=\(.path) bs=440 count=1"
     ]
   elif .type == "part" then
     [
-      "udevadm trigger --subsystem-match=block",
-      "udevadm settle",
-      # Remove the partition information 
-      "dd if=/dev/zero of=\(.path) bs=512 count=1"
+      "wipefs --all -f \(.path)"
     ]
   elif .type == "crypt" then
     [

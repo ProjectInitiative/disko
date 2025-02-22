@@ -32,6 +32,28 @@
       description = "Options to pass to mount";
     };
 
+    uuid = lib.mkOption {
+      type = lib.types.strMatching "[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}";
+      default = let 
+        # Generate a deterministic but random-looking UUID based on the pool name
+        # This avoids the need for impure access to nixpkgs at evaluation time
+        hash = builtins.hashString "sha256" "${config.name}";
+        hexChars = builtins.substring 0 32 hash;
+        p1 = builtins.substring 0 8 hexChars;
+        p2 = builtins.substring 8 4 hexChars;
+        p3 = builtins.substring 12 4 hexChars;
+        p4 = builtins.substring 16 4 hexChars;
+        p5 = builtins.substring 20 12 hexChars;
+      in
+        "${p1}-${p2}-${p3}-${p4}-${p5}";
+      defaultText = "generated deterministically based on pool name";
+      example = "809b3a2b-828a-4730-95e1-75b6343e415a";
+      description = ''
+        The UUID of the bcachefs filesystem. 
+        If not provided, a deterministic UUID will be generated based on the pool name.
+      '';
+    };
+
     content = diskoLib.deviceType { parent = config; device = "/dev/bcachefs/${config.name}"; };
 
     _meta = lib.mkOption {
@@ -45,31 +67,6 @@
 
     _create = diskoLib.mkCreateOption {
       inherit config options;
-      # default = ''
-      #   echo BCACHEFS POSITION
-      #   # Read member info from runtime dir
-      #   readarray -t member_args < <(cat "$disko_devices_dir/bcachefs-${config.name}-members" || true)
-        
-      #   # Add format options
-      #   args=()
-      #   args+=("''${member_args[@]}")
-      #   args+=(${toString config.formatOptions})
-
-      #   # Get the first device (primary)
-      #   primary_device=$(echo "''${member_args[0]}" | cut -d' ' -f1)
-
-      #   # Format if needed
-      #   if ! bcachefs show-super "$primary_device" >/dev/null 2>&1; then
-      #     bcachefs format --force "''${args[@]}"
-      #     udevadm trigger --subsystem-match=block
-      #     udevadm settle
-      #   fi
-
-      #   # Always get and store the UUID
-      #   mkdir -p /etc/disko-uuids
-      #   bcachefs show-super "$primary_device" | grep Ext | awk '{print $3}' > /etc/disko-uuids/bcachefs-${config.name}
-      #   ${lib.optionalString (config.content != null) config.content._create}
-      # '';
       default = ''
           echo BCACHEFS POSITION
           # Read member info from runtime dir - one argument per line
@@ -99,7 +96,7 @@
               format_attempts=$((format_attempts + 1))
               echo "Format attempt $format_attempts of $max_attempts..."
     
-              if bcachefs format --force "''${member_args[@]}" ${toString config.formatOptions}; then
+              if bcachefs format --force --uuid=${config.uuid} "''${member_args[@]}" ${toString config.formatOptions}; then
                 format_success=true
                 echo "Format successful"
               else
@@ -119,9 +116,6 @@
             udevadm settle
           fi
 
-          # Always get and store the UUID
-          mkdir -p /etc/disko-uuids
-          bcachefs show-super "''${members[0]}" | grep Ext | awk '{print $3}' > /etc/disko-uuids/bcachefs-${config.name}
           ${lib.optionalString (config.content != null) config.content._create}
       '';
     };
@@ -131,9 +125,7 @@
       default = {
         fs.${config.mountpoint} = ''
           if ! findmnt "${config.mountpoint}" > /dev/null 2>&1; then
-            # Read UUID from the file we created
-            uuid=$(cat /etc/disko-uuids/bcachefs-${config.name})
-            mount -t bcachefs UUID="$uuid" "${config.mountpoint}" \
+            mount -t bcachefs UUID="${config.uuid}" "${config.mountpoint}" \
               ${lib.concatMapStringsSep " " (opt: "-o ${opt}") config.mountOptions} \
               -o X-mount.mkdir
           fi
@@ -151,26 +143,58 @@
         '';
       };
     };
-
     _config = lib.mkOption {
       internal = true;
       readOnly = true;
-      default = let
-        uuidFile = "/etc/disko-uuids/bcachefs-${config.name}";
-        uuid = if builtins.pathExists uuidFile
-               then lib.removeSuffix "\n" (builtins.readFile uuidFile)
-               else "not-yet-created";
-      in [
-        { boot.supportedFilesystems = [ "bcachefs" ]; }
+      default =[
         {
-          fileSystems.${config.mountpoint} = {
-            device = "UUID=${uuid}";
-            fsType = "bcachefs";
-            options = config.mountOptions;
+          # Basic bcachefs support
+          boot.supportedFilesystems = [ "bcachefs" ];
+          boot.kernelModules = [ "bcachefs" ];
+          # use latest kernel
+          # boot.kernelPackages = config._pkgs.linuxPackages_latest;
+
+          # environment.systemPackages = with lib.pkgs; [
+          #   bcachefs-tools
+          #   util-linux
+          # ];
+
+        }
+        {
+          # fileSystems.${config.mountpoint} = {
+          #   device = "UUID=${config.uuid}";
+          #   fsType = "bcachefs";
+          #   options = config.mountOptions;
+          # };
+    
+##############################################################################
+# WORKAROUND: Until the following can be addressed. This means using
+# multi-disk bcachefs as a boot/root partition is not possible in its current
+# form with disko
+# https://github.com/koverstreet/bcachefs-tools/issues/308
+# https://github.com/systemd/systemd/issues/8234#issuecomment-1868238750
+##############################################################################
+          systemd.services."mount-${lib.replaceStrings ["/"] ["-"] config.mountpoint}" = {
+            description = "Mount bcachefs filesystem at ${config.mountpoint}";
+            before = [ "local-fs.target" ];
+            requires = [ "local-fs-pre.target" ];
+            after = [ "local-fs-pre.target" ];
+            environment = {
+              BCACHEFS_BLOCK_SCAN = "1";
+            };
+            script = ''
+              mkdir -p ${config.mountpoint}
+              mount -t bcachefs UUID=${config.uuid} ${config.mountpoint} -o ${lib.concatStringsSep "," config.mountOptions} -o X-mount.mkdir
+            '';
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
           };
         }
       ];
     };
+##############################################################################
 
     _pkgs = lib.mkOption {
       internal = true;
